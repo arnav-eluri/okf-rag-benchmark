@@ -30,6 +30,13 @@ def _read_docx(filepath):
     doc = _docx.Document(filepath)
     return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
 
+def _read_pdf(filepath):
+    import fitz
+    doc = fitz.open(filepath)
+    text = "\n".join(page.get_text() for page in doc)
+    doc.close()
+    return text
+
 def build_index(docs_dir):
     global _vectorstore
     docs = []
@@ -39,6 +46,10 @@ def build_index(docs_dir):
             docs.append(Document(page_content=content, metadata={"source": filepath}))
     for filepath in glob.glob(os.path.join(docs_dir, "**/*.docx"), recursive=True):
         content = _read_docx(filepath)
+        if content:
+            docs.append(Document(page_content=content, metadata={"source": filepath}))
+    for filepath in glob.glob(os.path.join(docs_dir, "**/*.pdf"), recursive=True):
+        content = _read_pdf(filepath)
         if content:
             docs.append(Document(page_content=content, metadata={"source": filepath}))
 
@@ -58,7 +69,7 @@ def build_index(docs_dir):
     )
     return len(chunks)
 
-def query_rag(question, k=3):
+def query_rag(question, k=5):
     if not _vectorstore:
         return None
     results = _vectorstore.similarity_search(question, k=k)

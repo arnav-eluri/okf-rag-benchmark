@@ -6,45 +6,46 @@ import rag, okf, hybrid, evaluator, config, json, datetime
 console = Console()
 
 TEST_QUESTIONS = [
+    # ── Times of India, Delhi — November 7, 2026 ──
     {
-        "question": "Who was stabbed on the flydubai flight from Dubai to Tel Aviv?",
-        "gold_answer": "The co-pilot was stabbed by the captain in an apparent attempt to crash the aircraft."
+        "question": "What was the average Air Quality Index recorded at 4 pm on Friday in New Delhi?",
+        "gold_answer": "The average AQI was 382 at 4 pm on Friday."
     },
     {
-        "question": "What altitude did the aircraft descend to during the incident?",
-        "gold_answer": "The aircraft descended from 33,000 feet to 17,000 feet in about a minute."
+        "question": "Which two areas in New Delhi recorded the highest AQI of 455 under GRAP III?",
+        "gold_answer": "The two areas that recorded an AQI of 455 were Punjabi Bagh and DTU."
     },
     {
-        "question": "Where did the flydubai flight FZ 1073 make an emergency landing?",
-        "gold_answer": "The flight made an emergency landing in Tabuk, Saudi Arabia."
+        "question": "What restriction on vehicles was imposed under GRAP III in Delhi?",
+        "gold_answer": "GRAP III includes restrictions on BS-III petrol and BS-IV diesel cars in Delhi and five high-vehicle-density NCR districts."
     },
     {
-        "question": "What was the name of the Indian pilot on the flydubai flight?",
-        "gold_answer": "Captain Smit Machchhar was the Indian pilot who sustained serious injuries."
+        "question": "How long did it take to control the fire at Puri Plaza in Gaffar Market?",
+        "gold_answer": "The fire took nearly 12 hours to be brought under control, with operations continuing till 1 pm."
     },
     {
-        "question": "How much drugs were seized in the Arabian Sea operation?",
-        "gold_answer": "526 kg of drugs were seized in the Arabian Sea, with five people held."
+        "question": "How many fire tenders were deployed at the Gaffar Market blaze?",
+        "gold_answer": "The deployment was increased to 25 fire tenders as the blaze intensified."
     },
     {
-        "question": "What is the India-EFTA partnership about?",
-        "gold_answer": "The India-EFTA deal is a partnership that can deliver across multiple sectors."
+        "question": "Who suggested that overheating phone batteries triggered the Gaffar Market fire?",
+        "gold_answer": "DCP (Central) Rohit Rajbir Singh said the fire could have been triggered by overheating or over-charging of phone batteries."
     },
     {
-        "question": "Which militant organization's commander was killed in Budgam, J&K?",
-        "gold_answer": "A Lashkar-e-Taiba (LeT) commander active in the Pir Panjal Valley and south Kashmir was killed."
+        "question": "Which German trust was identified by the ED as the source of the $1 million fund transferred to India?",
+        "gold_answer": "Dr Matthias Karl Vogt Trust of Germany was identified as the actual source of the $1 million fund."
     },
     {
-        "question": "What did Iran indicate it received on Wednesday?",
-        "gold_answer": "Iran said it received an official U.S. response to Tehran's proposal to end the war."
+        "question": "What is the name of the Lithuanian entity the German trust transferred funds to first?",
+        "gold_answer": "The German trust first transferred the funds to XBase Digital UAB in Lithuania."
     },
     {
-        "question": "How many people were on the flydubai flight FZ 1073?",
-        "gold_answer": "The flight was carrying 174 people, including dozens of Israelis."
+        "question": "How many labourers were working at the collapsed four-storey building in Chawri Bazar?",
+        "gold_answer": "Five labourers were working at the building: Kishori Sah, Sanjeet, Laxman Mukhiya, Vipin Ram, and Shantun."
     },
     {
-        "question": "What new norms has the Centre tightened?",
-        "gold_answer": "The Centre has tightened norms for passenger vehicles through the CAFE-III notification."
+        "question": "In which district of Bihar did labourer Kishori Sah's family live?",
+        "gold_answer": "Kishori Sah's family lived in Khagaria district in Bihar."
     },
 ]
 
@@ -81,42 +82,57 @@ def run():
         okf_score = okf_sf.result() if okf_sf else 0
         hyb_score = hyb_sf.result() if hyb_sf else 0
 
+        rag_p,  rag_r,  rag_f1  = evaluator.token_metrics(rag_ans, gold)
+        okf_p,  okf_r,  okf_f1  = evaluator.token_metrics(okf_ans, gold) if okf_ctx else (0, 0, 0)
+        hyb_p,  hyb_r,  hyb_f1  = evaluator.token_metrics(hyb_ans, gold) if hyb_ctx else (0, 0, 0)
+
         results.append({
             "question":     q,
-            "rag_score":    rag_score,
-            "okf_score":    okf_score,
-            "hybrid_score": hyb_score,
+            "rag_ctx":      rag_ctx,
+            "okf_ctx":      okf_ctx,
+            "hyb_ctx":      hyb_ctx,
+            "rag_score":    rag_score,  "rag_precision":  rag_p,  "rag_f1":  rag_f1,
+            "okf_score":    okf_score,  "okf_precision":  okf_p,  "okf_f1":  okf_f1,
+            "hybrid_score": hyb_score,  "hyb_precision":  hyb_p,  "hyb_f1":  hyb_f1,
             "hybrid_used":  hyb_backend,
         })
 
     # ── PRINT TABLE ──────────────────────────────────────────
     t = Table(title="RAG vs OKF vs Hybrid — Accuracy Tracker")
-    t.add_column("Question",       style="cyan",  max_width=30)
-    t.add_column("RAG Score",      style="blue",  justify="center")
-    t.add_column("OKF Score",      style="green", justify="center")
-    t.add_column("Hybrid Score",   style="red",   justify="center")
-    t.add_column("Hybrid Used",    style="yellow",justify="center")
+    t.add_column("Question",        style="cyan",   max_width=28)
+    t.add_column("RAG\nLLM/P/F1",  style="blue",   justify="center")
+    t.add_column("OKF\nLLM/P/F1",  style="green",  justify="center")
+    t.add_column("Hybrid\nLLM/P/F1",style="red",   justify="center")
+    t.add_column("Used",            style="yellow", justify="center")
 
     for r in results:
         t.add_row(
             r["question"],
-            f"{r['rag_score']}/10",
-            f"{r['okf_score']}/10",
-            f"{r['hybrid_score']}/10",
+            f"{r['rag_score']}/10  {r['rag_precision']:.2f}  {r['rag_f1']:.2f}",
+            f"{r['okf_score']}/10  {r['okf_precision']:.2f}  {r['okf_f1']:.2f}",
+            f"{r['hybrid_score']}/10  {r['hyb_precision']:.2f}  {r['hyb_f1']:.2f}",
             r["hybrid_used"],
         )
 
     console.print(t)
 
-    # ── AVERAGES ─────────────────────────────────────────────
-    avg = lambda key: sum(r[key] for r in results) / len(results)
-    console.print(f"\n[bold]Averages:[/bold]  RAG {avg('rag_score'):.1f}  |  "
-                  f"OKF {avg('okf_score'):.1f}  |  Hybrid {avg('hybrid_score'):.1f}")
+    # ── AVERAGES (exclude no-match rows so zeros don't skew) ─
+    def avg(key, ctx_key):
+        matched = [r[key] for r in results if r[ctx_key]]
+        return sum(matched) / len(matched) if matched else 0.0
+
+    console.print(
+        f"\n[bold]Averages[/bold]\n"
+        f"  RAG    — LLM {avg('rag_score','rag_ctx'):.1f}/10  |  Precision {avg('rag_precision','rag_ctx'):.3f}  |  F1 {avg('rag_f1','rag_ctx'):.3f}\n"
+        f"  OKF    — LLM {avg('okf_score','okf_ctx'):.1f}/10  |  Precision {avg('okf_precision','okf_ctx'):.3f}  |  F1 {avg('okf_f1','okf_ctx'):.3f}\n"
+        f"  Hybrid — LLM {avg('hybrid_score','hyb_ctx'):.1f}/10  |  Precision {avg('hyb_precision','hyb_ctx'):.3f}  |  F1 {avg('hyb_f1','hyb_ctx'):.3f}"
+    )
 
     # ── SAVE TO JSON ─────────────────────────────────────────
     fname = f"results_{datetime.date.today()}.json"
+    export = [{k: v for k, v in r.items() if k not in ("rag_ctx", "okf_ctx", "hyb_ctx")} for r in results]
     with open(fname, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(export, f, indent=2)
     console.print(f"\nSaved to [bold]{fname}[/bold]")
 
 if __name__ == "__main__":

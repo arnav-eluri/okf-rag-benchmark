@@ -1,153 +1,155 @@
-# OKF - Ontology Knowledge Framework Evaluation
+# OKF — Ontology Knowledge Framework
 
-A framework for comparing three question-answering approaches: RAG (Retrieval Augmented Generation), OKF (Ontology Knowledge Framework), and a Hybrid routing strategy.
+A benchmarking framework that compares three question-answering retrieval strategies — **RAG**, **OKF**, and **Hybrid** — against real newspaper content. Each strategy retrieves context independently; a shared LLM layer generates and scores answers against gold standards.
 
-**Author:** Arnav Eluri 
+**Author:** Arnav Eluri  
 **License:** MIT
+
+---
+
+## Architecture
+
+```
+                        User Question
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+      RAG Pipeline       OKF Pipeline       Hybrid Router
+      documents/         okf_bundle/        (OKF → RAG fallback)
+      Chroma + embeddings  YAML frontmatter  combined context
+          │                   │                   │
+          └───────────────────┴───────────────────┘
+                              │
+                     LLM Layer (Groq)
+                     Answer generation + scoring
+                              │
+                     Results table + JSON
+```
+
+| Strategy | How it retrieves |
+|----------|-----------------|
+| **RAG** | Embeds source documents into Chroma; returns top-5 chunks by cosine similarity |
+| **OKF** | Keyword-matches curated Markdown files via YAML frontmatter; returns the most relevant 300-char chunk via cosine similarity |
+| **Hybrid** | Queries OKF and RAG independently; when OKF matches, concatenates both contexts (RAG first, OKF last) for the LLM |
+
+---
+
+## Benchmark Results
+
+Evaluated on 10 questions from the **Times of India, Delhi edition — November 7, 2026**.  
+Scores are averaged across all questions where the retriever returned context.
+
+| System | LLM Score | Precision | F1 |
+|--------|----------:|----------:|---:|
+| **Hybrid** | **8.7 / 10** | **0.718** | **0.643** |
+| RAG    | 8.0 / 10 | 0.712 | 0.581 |
+| OKF    | 4.5 / 10 | 0.545 | 0.563 |
+
+- **LLM Score** — Groq-judged factual accuracy, 0–10, with partial-credit rubric  
+- **Precision / F1** — SQuAD-style token-overlap against gold answers
+
+Hybrid outperforms RAG standalone by combining curated OKF facts with semantic RAG context. OKF standalone scores lower because it is intentionally narrow — it only fires on explicitly curated topics.
+
+---
 
 ## Project Structure
 
-### Core Modules
+```
+okf/
+├── main.py           # Entry point — runs eval, prints table, saves JSON
+├── evaluator.py      # Answer generation + LLM scoring (Groq)
+├── rag.py            # Chroma vector index; ingests .md, .docx, .pdf
+├── okf.py            # Keyword + frontmatter matcher with mini-RAG reranking
+├── hybrid.py         # Combines OKF and RAG contexts; falls back to RAG
+├── config.py         # Env var loading
+├── documents/        # Source files indexed by RAG
+│   └── Times of India_TOIDelhiBS-Delhi_20261107.pdf
+├── okf_bundle/       # Curated knowledge files
+│   ├── grap_delhi_pollution.md
+│   ├── gaffar_market_fire.md
+│   ├── ed_foreign_funds.md
+│   ├── chawri_bazar_collapse.md
+│   └── ml_glossary.md
+└── results_YYYY-MM-DD.json
+```
 
-- **main.py** - Entry point that runs the evaluation suite against test questions and generates a comparison report with accuracy scores
-- **evaluator.py** - LLM-powered evaluation that generates answers from context and scores responses against gold standard answers using Groq API
-- **rag.py** - RAG implementation using sentence-transformers and Chroma vector database for semantic search over documents
-- **okf.py** - OKF approach that performs keyword matching on markdown files with YAML frontmatter, respects staleness metadata
-- **hybrid.py** - Router that selects between OKF and RAG based on question keywords, falls back to RAG when OKF has no match
-- **config.py** - Centralized configuration loading environment variables for API keys and directory paths
+---
 
-### Configuration Files
+## Setup
 
-- **.env** - Environment variables for API keys and paths (not committed to git)
-- **.gitignore** - Git ignore patterns for Python, virtual environments, and sensitive files
-- **requirements.txt** - Python package dependencies
-
-### Data Directories (User-Created)
-
-- **documents/** - Text files indexed by RAG for semantic search
-- **okf_bundle/** - Markdown files with YAML frontmatter for OKF queries
-
-## What The Code Does
-
-### Workflow
-
-1. **Index Building** - RAG builds a vector index from documents in the documents directory
-2. **Test Execution** - For each test question:
-   - RAG: Semantic search retrieves relevant documents, LLM generates answer
-   - OKF: Keyword matching in markdown files, returns structured content if found
-   - Hybrid: Routes to OKF or RAG based on question keywords, falls back intelligently
-3. **Scoring** - LLM evaluates each answer against a gold standard and assigns a 0-10 accuracy score
-4. **Reporting** - Results table displays scores for all three approaches, calculates averages, saves to JSON
-
-### Key Features
-
-- OKF staleness checking: Returns no context if YAML stale_after date has passed
-- OKF verification metadata: Tracks whether OKF content is human-verified
-- Hybrid routing: Keyword-based router reduces unnecessary LLM calls for structured queries
-- Extensible test suite: Add questions to TEST_QUESTIONS array in main.py
-
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.8 or higher
-- Groq API key (get from https://console.groq.com)
-
-### Step 1: Clone and Install
+**Prerequisites:** Python 3.8+, a [Groq API key](https://console.groq.com)
 
 ```bash
-cd okf
 pip install -r requirements.txt
 ```
 
-### Step 2: Configure API Key
+Create a `.env` file:
 
-1. Get a Groq API key from https://console.groq.com
-2. Edit .env file and add:
-   ```
-   GROQ_API_KEY=your_groq_api_key_here
-   ```
+```env
+GROQ_API_KEY=your_groq_api_key_here
 
-### Step 3: Prepare Data
-
-Create the required directories and add your content:
-
-```bash
-mkdir documents okf_bundle
+# Optional — enables Google text-embedding-004 (better retrieval quality)
+# Get a key at https://aistudio.google.com/app/apikey
+GOOGLE_API_KEY=AIza...
 ```
 
-- Add .txt files to `documents/` for RAG to index
-- Add .md files to `okf_bundle/` for OKF queries (with optional YAML frontmatter)
+Without `GOOGLE_API_KEY`, the system falls back to `all-MiniLM-L6-v2` via HuggingFace.
 
-### Step 4: Define Test Questions
+---
 
-Edit TEST_QUESTIONS in main.py and add your test cases:
-
-```python
-TEST_QUESTIONS = [
-    {
-        "question": "Your question here?",
-        "gold_answer": "Expected answer here."
-    },
-]
-```
-
-### Step 5: Run Evaluation
+## Running
 
 ```bash
 python main.py
 ```
 
-The script will generate a comparison table and save results to `results_YYYY-MM-DD.json`.
+Builds the RAG index on every run (wipes `.chroma/` first to avoid stale chunks), evaluates all 10 questions in parallel, prints a Rich table, and saves `results_YYYY-MM-DD.json`.
 
-## OKF Markdown Format
+---
 
-Create markdown files in okf_bundle/ with this structure:
+## Extending
+
+### Adding documents to RAG
+
+Drop any `.md`, `.docx`, or `.pdf` into `documents/`. The index rebuilds automatically on the next run.
+
+### Adding knowledge to OKF
+
+Create a Markdown file in `okf_bundle/` with YAML frontmatter:
 
 ```markdown
 ---
 verified: true
-stale_after: 2026-12-31
+stale_after: 2027-06-01
+keywords: [keyword1, keyword2, "multi word phrase"]
 ---
 
 Your knowledge content here.
 ```
 
-The OKF router matches against the filename (with underscores converted to spaces) in lowercase question text.
+The OKF matcher fires when any `keyword` (or the filename slug) appears in the question. If the file body is long, it is split into 300-char chunks and the most relevant chunk is returned via embedding similarity. Content past `stale_after` is silently skipped.
 
-## Hybrid Routing Keywords
+### Adding test questions
 
-The hybrid router checks for these keywords to decide between OKF and RAG:
+Add entries to `TEST_QUESTIONS` in `main.py`:
 
-- policy
-- definition
-- what is
-- procedure
-- rule
+```python
+{
+    "question": "Your question here?",
+    "gold_answer": "Expected factual answer."
+}
+```
 
-Questions containing these keywords route to OKF first, falling back to RAG if no match.
+---
 
-## Model Configuration
+## Model
 
-The evaluator uses Groq's `llama-3.3-70b-versatile` model for:
-- Generating answers from context
-- Scoring answer accuracy
+Answer generation and scoring both use `qwen/qwen3.8-27b` via Groq with the `/no_think` directive to suppress chain-of-thought output and stay within token budgets.
 
-Available Free Groq Models:
-- llama-3.3-70b-versatile (production)
-- llama-3.1-8b-instant (production)
-- openai/gpt-oss-120b (production)
-- openai/gpt-oss-20b (production)
+The scorer uses a partial-credit rubric: 10 for exact facts, 7–9 for correct facts with minor phrasing differences, 4–6 for partial answers, 0–3 for wrong or missing answers.
 
-## Extensibility
-
-To add a fourth approach:
-
-1. Create a new query function in a new module
-2. Call it in main.py's run() function
-3. Add its score column to the results table
-4. Include it in average calculations
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see `LICENSE`.
