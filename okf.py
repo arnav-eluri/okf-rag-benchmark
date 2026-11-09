@@ -6,8 +6,8 @@ def query_okf(question, bundle_dir):  # function accepting the question and the 
         if not fname.endswith(".md"): # file specified 
             continue
         path = os.path.join(bundle_dir, fname)
-        with open(path) as f:
-            content = f.read()      # reads the file 
+        with open(path, encoding='utf-8') as f:
+            content = f.read()
 
         # parse YAML frontmatter
         parts = content.split("---")
@@ -17,11 +17,14 @@ def query_okf(question, bundle_dir):  # function accepting the question and the 
         # check staleness
         stale = meta.get("stale_after")
         if stale and datetime.date.today() > stale:
-            return None, "STALE"
+            continue
 
-        # simple keyword match (swap for a classifier later)
+        # match on filename concept or any declared keyword
         concept_name = fname.replace(".md", "").replace("_", " ")
-        if concept_name in question_lower:
+        keywords = meta.get("keywords", [])
+        if isinstance(keywords, str):
+            keywords = [keywords]
+        if concept_name in question_lower or any(str(kw).lower() in question_lower for kw in keywords):
             return body, meta.get("verified", False)
 
     return None, None  # not found

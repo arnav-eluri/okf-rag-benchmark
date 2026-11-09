@@ -56,38 +56,37 @@ def run():
         q    = item["question"]
         gold = item["gold_answer"]
 
-        # Retrieve contexts (local, fast)
-        rag_ctx            = rag.query_rag(q)
-        okf_ctx, _         = okf.query_okf(q, config.OKF_BUNDLE_DIR)
-        hyb_ctx, backend, _ = hybrid.query_hybrid(q, config.OKF_BUNDLE_DIR)
-        hyb_reuses_okf     = (backend == "OKF" and okf_ctx is not None)
+        # Retrieve contexts
+        rag_ctx = rag.query_rag(q)
+        okf_ctx, _ = okf.query_okf(q, config.OKF_BUNDLE_DIR)
+        hyb_ctx, hyb_backend, _ = hybrid.query_hybrid(q, config.OKF_BUNDLE_DIR)
 
-        # Parallel answer generation; skip hybrid if it reuses OKF context
+        # Parallel answer generation
         with ThreadPoolExecutor(max_workers=3) as ex:
             rag_f = ex.submit(evaluator.get_answer, q, rag_ctx)
             okf_f = ex.submit(evaluator.get_answer, q, okf_ctx) if okf_ctx else None
-            hyb_f = None if hyb_reuses_okf else ex.submit(evaluator.get_answer, q, hyb_ctx)
+            hyb_f = ex.submit(evaluator.get_answer, q, hyb_ctx) if hyb_ctx else None
 
         rag_ans = rag_f.result()
         okf_ans = okf_f.result() if okf_f else "Not in bundle"
-        hyb_ans = okf_ans if hyb_reuses_okf else hyb_f.result()
+        hyb_ans = hyb_f.result() if hyb_f else "No context"
 
-        # Parallel scoring; skip hybrid if answer is reused
+        # Parallel scoring
         with ThreadPoolExecutor(max_workers=3) as ex:
             rag_sf = ex.submit(evaluator.score_answer, q, rag_ans, gold)
             okf_sf = ex.submit(evaluator.score_answer, q, okf_ans, gold) if okf_ctx else None
-            hyb_sf = None if hyb_reuses_okf else ex.submit(evaluator.score_answer, q, hyb_ans, gold)
+            hyb_sf = ex.submit(evaluator.score_answer, q, hyb_ans, gold) if hyb_ctx else None
 
         rag_score = rag_sf.result()
         okf_score = okf_sf.result() if okf_sf else 0
-        hyb_score = okf_score if hyb_reuses_okf else (hyb_sf.result() if hyb_sf else 0)
+        hyb_score = hyb_sf.result() if hyb_sf else 0
 
         results.append({
-            "question":    q,
-            "rag_score":   rag_score,
-            "okf_score":   okf_score,
-            "hyb_score":   hyb_score,
-            "hyb_backend": backend,
+            "question":     q,
+            "rag_score":    rag_score,
+            "okf_score":    okf_score,
+            "hybrid_score": hyb_score,
+            "hybrid_used":  hyb_backend,
         })
 
     # ── PRINT TABLE ──────────────────────────────────────────
@@ -103,8 +102,8 @@ def run():
             r["question"],
             f"{r['rag_score']}/10",
             f"{r['okf_score']}/10",
-            f"{r['hyb_score']}/10",
-            r["hyb_backend"],
+            f"{r['hybrid_score']}/10",
+            r["hybrid_used"],
         )
 
     console.print(t)
@@ -112,7 +111,7 @@ def run():
     # ── AVERAGES ─────────────────────────────────────────────
     avg = lambda key: sum(r[key] for r in results) / len(results)
     console.print(f"\n[bold]Averages:[/bold]  RAG {avg('rag_score'):.1f}  |  "
-                  f"OKF {avg('okf_score'):.1f}  |  Hybrid {avg('hyb_score'):.1f}")
+                  f"OKF {avg('okf_score'):.1f}  |  Hybrid {avg('hybrid_score'):.1f}")
 
     # ── SAVE TO JSON ─────────────────────────────────────────
     fname = f"results_{datetime.date.today()}.json"
