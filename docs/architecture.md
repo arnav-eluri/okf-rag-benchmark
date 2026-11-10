@@ -21,10 +21,10 @@ This project benchmarks three question-answering strategies against a fixed set 
            └─────────────────┴─────────────────┘
                              │
                     evaluator.get_answer
-                    (Groq llama-3.3-70b-versatile)
+                    (Groq qwen/qwen3.8-27b)
                              │
                     evaluator.score_answer
-                    (Groq llama-3.3-70b-versatile)
+                    (Groq qwen/qwen3.8-27b)
 ```
 
 ## Strategy Details
@@ -34,7 +34,7 @@ This project benchmarks three question-answering strategies against a fixed set 
 - Embeds every `.md` file under `documents/` using `all-MiniLM-L6-v2` (HuggingFace sentence-transformers).
 - Splits documents into 400-token chunks with 50-token overlap via `RecursiveCharacterTextSplitter`.
 - Stores vectors in a local Chroma database (`.chroma/`).
-- At query time retrieves the top-3 most similar chunks by cosine similarity.
+- At query time retrieves the top-5 most similar chunks by cosine similarity.
 - **Source of truth**: raw source documents in `documents/`.
 
 ### OKF (`okf.py`)
@@ -49,9 +49,10 @@ This project benchmarks three question-answering strategies against a fixed set 
 
 ### Hybrid (`hybrid.py`)
 
-- Calls OKF first. If OKF returns a match, uses that context (no RAG call made).
-- Falls back to RAG when OKF has no match.
-- `main.py` detects reuse (same context, same answer) and skips redundant LLM calls.
+- Always queries both OKF and RAG independently.
+- If both return context, concatenates them: RAG chunks under `[Additional context]`, OKF body under `[Curated source]`. Backend label: `OKF+RAG`.
+- If only OKF matches, returns OKF context alone (`OKF`).
+- If only RAG matches (OKF had no keyword hit), returns RAG context alone (`RAG`).
 
 ## LLM Configuration
 

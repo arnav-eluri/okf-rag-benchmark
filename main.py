@@ -1,7 +1,7 @@
 from rich.table import Table
 from rich.console import Console
 from concurrent.futures import ThreadPoolExecutor
-import rag, okf, hybrid, evaluator, config, json, datetime
+import rag, okf, hybrid, evaluator, config, json, datetime, os
 
 console = Console()
 
@@ -47,6 +47,100 @@ TEST_QUESTIONS = [
         "question": "In which district of Bihar did labourer Kishori Sah's family live?",
         "gold_answer": "Kishori Sah's family lived in Khagaria district in Bihar."
     },
+
+    # ── GRAP III — additional ──
+    {
+        "question": "What was Delhi's average AQI the day before GRAP III was triggered?",
+        "gold_answer": "The average AQI was 369 the day before GRAP III was triggered."
+    },
+    {
+        "question": "What work-from-home provision was mandated under GRAP III?",
+        "gold_answer": "GRAP III mandated 50% WFH in offices."
+    },
+    {
+        "question": "What AQI did Jahangirpuri record on Friday under GRAP III?",
+        "gold_answer": "Jahangirpuri recorded an AQI of 449."
+    },
+    {
+        "question": "What construction activity was banned under GRAP III in Delhi?",
+        "gold_answer": "GRAP III includes a ban on major dust-generating construction and demolition work."
+    },
+
+    # ── Gaffar Market fire — additional ──
+    {
+        "question": "How many shops were gutted in the Gaffar Market fire?",
+        "gold_answer": "About 40 shops were gutted in the blaze."
+    },
+    {
+        "question": "In which lane of Gaffar Market was the Puri Plaza building located?",
+        "gold_answer": "Puri Plaza was located in Chain Wali Gali, Gaffar Market."
+    },
+
+    # ── ED foreign funds — additional ──
+    {
+        "question": "Which entity registered in a tax haven was identified by the ED as a source of funds that reached India?",
+        "gold_answer": "TCC Digital Markets Ltd, registered in the tax haven of Saint Kitts and Nevis, was identified as a source of funds that reached India."
+    },
+    {
+        "question": "How much did ZBase Digital Inc transfer to the UK-based firm, and when?",
+        "gold_answer": "ZBase Digital Inc transferred $500,000 in February to the UK-based firm."
+    },
+
+    # ── Chawri Bazar collapse — additional ──
+    {
+        "question": "When did the Chawri Bazar building collapse occur?",
+        "gold_answer": "The collapse occurred on Thursday morning."
+    },
+    {
+        "question": "Where were the labourers at the Chawri Bazar collapse originally from?",
+        "gold_answer": "The labourers were migrant workers from Bihar."
+    },
+
+    # ── RAG-only: Bhakra-Nangal SC settlement ──
+    {
+        "question": "How many million units of electricity were Punjab and Haryana directed by the Supreme Court to supply to Himachal Pradesh each year?",
+        "gold_answer": "Punjab and Haryana were directed to supply 598 million units every year, during October to March, to Himachal Pradesh for the next 20 years."
+    },
+    {
+        "question": "Who chaperones the cashless settlement in the Supreme Court's Bhakra-Nangal and Beas dispute?",
+        "gold_answer": "The settlement was chaperones by Attorney General R Venkataramani."
+    },
+
+    # ── RAG-only: WFH violation in Gurgaon ──
+    {
+        "question": "Which official issued show-cause notices to the Gurgaon law firms for violating the WFH directive?",
+        "gold_answer": "The notices were issued by the sub-divisional magistrate of Badshapur."
+    },
+    {
+        "question": "On what date were inspections conducted at the Gurgaon law firms that led to WFH violation notices?",
+        "gold_answer": "Inspections were conducted at the premises of the firms on Nov 5."
+    },
+
+    # ── RAG-only: Ankit Baliyan murder case ──
+    {
+        "question": "Where and when was Haryanvi singer Ankit Baliyan shot dead?",
+        "gold_answer": "Singer Ankit Baliyan was shot dead outside a gym in Shamli on August 26, 2026."
+    },
+    {
+        "question": "What protective gear did the court order for the two undertrials accused in the Ankit Baliyan murder case while being transported to Shamli?",
+        "gold_answer": "The court directed that the accused be transported to Shamli court and back handcuffed and shackled, while wearing bulletproof jackets."
+    },
+
+    # ── RAG-only: CBI Future Retail case ──
+    {
+        "question": "What was the amount involved in the CBI bank fraud case registered against Future Retail Ltd?",
+        "gold_answer": "The CBI registered a bank fraud case involving Rs 904 crore against Future Retail Ltd."
+    },
+    {
+        "question": "Which bank's complaint led to the CBI case against Future Retail Ltd?",
+        "gold_answer": "The complaint was lodged by State Bank of India, Stressed Assets Management Branch-III, Mumbai."
+    },
+
+    # ── RAG-only: Mohammed Shami ──
+    {
+        "question": "On what date and against which team did Mohammed Shami make his Test cricket debut?",
+        "gold_answer": "Mohammed Shami made his Test debut against West Indies at Eden Gardens on November 6, 2013."
+    },
 ]
 
 def run():
@@ -66,7 +160,7 @@ def run():
         with ThreadPoolExecutor(max_workers=3) as ex:
             rag_f = ex.submit(evaluator.get_answer, q, rag_ctx)
             okf_f = ex.submit(evaluator.get_answer, q, okf_ctx) if okf_ctx else None
-            hyb_f = ex.submit(evaluator.get_answer, q, hyb_ctx) if hyb_ctx else None
+            hyb_f = ex.submit(evaluator.get_answer, q, hyb_ctx, evaluator.HYBRID_SYSTEM) if hyb_ctx else None
 
         rag_ans = rag_f.result()
         okf_ans = okf_f.result() if okf_f else "Not in bundle"
@@ -129,7 +223,8 @@ def run():
     )
 
     # ── SAVE TO JSON ─────────────────────────────────────────
-    fname = f"results_{datetime.date.today()}.json"
+    os.makedirs("results", exist_ok=True)
+    fname = f"results/results_{datetime.date.today()}.json"
     export = [{k: v for k, v in r.items() if k not in ("rag_ctx", "okf_ctx", "hyb_ctx")} for r in results]
     with open(fname, "w") as f:
         json.dump(export, f, indent=2)

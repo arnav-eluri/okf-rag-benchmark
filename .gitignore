@@ -43,7 +43,7 @@ ENV/
 .DS_Store
 
 # Project specific
-results_*.json
+results/
 .chroma/
 chroma.db
 *.db

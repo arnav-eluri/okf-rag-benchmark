@@ -23,9 +23,23 @@ def _call(messages, max_tokens):
 
 _ANSWER_SYSTEM = (
     "You are a factual QA assistant. "
-    "Answer the question in one or two concise sentences using only the provided context. "
+    "Answer in exactly one complete declarative sentence. "
+    "Explicitly name every entity the question asks about — person, place, number, or date — "
+    "restating it from the question. "
     "Quote numbers and names exactly as they appear in the context. "
-    "Do not add commentary or hedging."
+    "No hedging, no additional sentences."
+)
+
+# For hybrid context, nudge the model to prefer the curated section when present.
+HYBRID_SYSTEM = (
+    "You are a factual QA assistant. "
+    "Answer in exactly one complete declarative sentence. "
+    "Explicitly name every entity the question asks about — person, place, number, or date — "
+    "restating it from the question. "
+    "When a [Curated source] section is present, prefer it; use [Additional context] only "
+    "for details the curated source does not cover. "
+    "Quote numbers and names exactly as they appear in the context. "
+    "No hedging, no additional sentences."
 )
 
 def get_answer(question, context, system=None):
@@ -34,7 +48,7 @@ def get_answer(question, context, system=None):
     resp = _call([
         {"role": "system", "content": f"{system or _ANSWER_SYSTEM} {_NO_THINK}"},
         {"role": "user",   "content": f"Context:\n{context}\n\nQuestion: {question}"},
-    ], max_tokens=200)
+    ], max_tokens=80)
     return resp.choices[0].message.content.strip()
 
 def _tokenize(text):

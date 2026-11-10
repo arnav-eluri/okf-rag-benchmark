@@ -36,19 +36,19 @@ A benchmarking framework that compares three question-answering retrieval strate
 
 ## Benchmark Results
 
-Evaluated on 10 questions from the **Times of India, Delhi edition — November 7, 2026**.  
-Scores are averaged across all questions where the retriever returned context.
+Evaluated on 29 questions from the **Times of India, Delhi edition — November 7, 2026**.  
+Scores are averaged across all questions where the retriever returned context (OKF matched 26 / 29).
 
 | System | LLM Score | Precision | F1 |
 |--------|----------:|----------:|---:|
-| **Hybrid** | **8.7 / 10** | **0.718** | **0.643** |
-| RAG    | 8.0 / 10 | 0.712 | 0.581 |
-| OKF    | 4.5 / 10 | 0.545 | 0.563 |
+| **Hybrid** | **8.6 / 10** | **0.739** | **0.659** |
+| RAG    | 8.2 / 10 | 0.648 | 0.553 |
+| OKF    | 4.1 / 10 | 0.552 | 0.518 |
 
 - **LLM Score** — Groq-judged factual accuracy, 0–10, with partial-credit rubric  
 - **Precision / F1** — SQuAD-style token-overlap against gold answers
 
-Hybrid outperforms RAG standalone by combining curated OKF facts with semantic RAG context. OKF standalone scores lower because it is intentionally narrow — it only fires on explicitly curated topics.
+Hybrid outperforms RAG standalone by appending curated OKF context (when available) on top of RAG chunks, sharpening entity-level recall. OKF standalone scores lower because it is intentionally narrow — it only fires on explicitly curated topics.
 
 ---
 
@@ -56,21 +56,29 @@ Hybrid outperforms RAG standalone by combining curated OKF facts with semantic R
 
 ```
 okf/
-├── main.py           # Entry point — runs eval, prints table, saves JSON
-├── evaluator.py      # Answer generation + LLM scoring (Groq)
-├── rag.py            # Chroma vector index; ingests .md, .docx, .pdf
-├── okf.py            # Keyword + frontmatter matcher with mini-RAG reranking
-├── hybrid.py         # Combines OKF and RAG contexts; falls back to RAG
-├── config.py         # Env var loading
-├── documents/        # Source files indexed by RAG
+├── main.py             # Entry point — runs eval, prints table, saves JSON
+├── evaluator.py        # Answer generation + LLM scoring (Groq)
+├── rag.py              # Chroma vector index; ingests .md, .docx, .pdf
+├── okf.py              # Keyword + frontmatter matcher with mini-RAG reranking
+├── hybrid.py           # Combines OKF and RAG contexts; falls back to RAG
+├── config.py           # Env var loading
+├── requirements.txt
+├── documents/          # Source files indexed by RAG (gitignored)
 │   └── Times of India_TOIDelhiBS-Delhi_20261107.pdf
-├── okf_bundle/       # Curated knowledge files
+├── okf_bundle/         # Curated knowledge files
 │   ├── grap_delhi_pollution.md
 │   ├── gaffar_market_fire.md
 │   ├── ed_foreign_funds.md
 │   ├── chawri_bazar_collapse.md
 │   └── ml_glossary.md
-└── results_YYYY-MM-DD.json
+├── docs/               # Design and methodology notes
+│   ├── architecture.md
+│   ├── architecture.png
+│   ├── evaluation.md
+│   ├── okf-format.md
+│   └── adding-content.md
+└── results/            # Evaluation outputs, gitignored
+    └── results_YYYY-MM-DD.json
 ```
 
 ---
@@ -103,7 +111,7 @@ Without `GOOGLE_API_KEY`, the system falls back to `all-MiniLM-L6-v2` via Huggin
 python main.py
 ```
 
-Builds the RAG index on every run (wipes `.chroma/` first to avoid stale chunks), evaluates all 10 questions in parallel, prints a Rich table, and saves `results_YYYY-MM-DD.json`.
+Builds the RAG index on every run (wipes `.chroma/` first to avoid stale chunks), evaluates all 29 questions, prints a Rich table, and saves `results/results_YYYY-MM-DD.json`.
 
 ---
 

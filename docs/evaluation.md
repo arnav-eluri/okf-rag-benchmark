@@ -9,11 +9,16 @@ Question: <question>
 Expected answer: <gold_answer>
 Given answer: <generated_answer>
 
-Rate the accuracy of the given answer from 0 to 10.
-Reply with just a number.
+Score the given answer 0-10 for factual accuracy.
+10 = all key facts correct (names, numbers, dates match).
+7-9 = correct fact, minor phrasing difference.
+4-6 = partially correct or missing one key detail.
+1-3 = mostly wrong but contains a relevant fragment.
+0 = completely wrong or no answer.
+Reply with just a single integer.
 ```
 
-The LLM returns an integer 0–10. The evaluator parses it; if parsing fails it returns 0.
+The LLM returns an integer 0–10. The evaluator parses it with a regex; if parsing fails it returns 0.
 
 ## Test Questions
 
@@ -42,7 +47,7 @@ A Rich table is printed to stdout:
 | RAG Score | 0–10, pure vector-search retrieval |
 | OKF Score | 0–10, structured bundle lookup |
 | Hybrid Score | 0–10, OKF-first with RAG fallback |
-| Hybrid Used | Which backend Hybrid selected (`OKF` or `RAG`) |
+| Hybrid Used | Which backend Hybrid selected (`OKF+RAG`, `OKF`, or `RAG`) |
 
 Averages are printed below the table. All results are saved to `results_YYYY-MM-DD.json`.
 
