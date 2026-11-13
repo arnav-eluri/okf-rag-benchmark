@@ -2,6 +2,8 @@
 
 A benchmarking framework that compares three question-answering retrieval strategies — **RAG**, **OKF**, and **Hybrid** — against real newspaper content. Each strategy retrieves context independently; a shared LLM layer generates and scores answers against gold standards.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24130103.svg)](https://doi.org/10.5281/zenodo.24130103)
+
 **Author:** Arnav Eluri  
 **License:** MIT
 
